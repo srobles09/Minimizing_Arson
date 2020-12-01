@@ -11,7 +11,6 @@ from scipy.optimize import linear_sum_assignment
 ### Read in data
 crime_loc = 'https://www.denvergov.org/media/gis/DataCatalog/crime/csv/crime.csv'
 #firestn_loc = 'https://www.denvergov.org/media/gis/DataCatalog/fire_stations/csv/fire_stations.csv'
-firestn_loc = 'C:/Users/Sandy Oaks/Documents/Grad School/F20_MATH-5593/Project/fire_stations.csv'
 firedisctrict_loc = 'https://www.denvergov.org/media/gis/DataCatalog/fire_districts/csv/fire_districts.csv'
 
 crime = pd.read_csv(crime_loc)
@@ -46,7 +45,6 @@ for i in range(fire_stns.shape[0]):
     coor_stns = (fire_stns.GEO_LAT.iloc[i],fire_stns.GEO_LON.iloc[i])
     crime[new_col_name] = crime.apply(distancer,coor=coor_stns, axis=1)
 
-#crime.to_csv("C:/Users/Sandy Oaks/Documents/Grad School/F20_MATH-5593/Project/crime_forLP.csv")
 
 
 ## ---------------- MINIMIZATION PROBLEM ---------------- ##
@@ -86,31 +84,35 @@ optimized_arson.rename(columns={0: "arson_index", 1: "firestn_index"},inplace=Tr
 optimized_arson['firestation'] = optimized_arson['firestn_index'].map(fs_dict) 
 crime['arson_index'] = crime.index
 
-optimized_arson = pd.merge(optimized_arson.drop(['firestn_index'],axis=1),crime[['arson_index','OFFENSE_TYPE_ID','INCIDENT_ADDRESS','DISTRICT_ID','PRECINCT_ID','NEIGHBORHOOD_ID']],how='inner',on='arson_index')
+optimized_arson = pd.merge(optimized_arson.drop(['firestn_index'],axis=1),crime[['arson_index','OFFENSE_TYPE_ID','INCIDENT_ADDRESS','DISTRICT_ID','PRECINCT_ID','NEIGHBORHOOD_ID','GEO_LAT','GEO_LON']],how='inner',on='arson_index')
 
 ## ---------------- HOW MANY TIMES DOES THE FIRE STATION EXIST OUTSIDE OF THE DISTRICT? ---------------- ##
 optimized_arson.rename(columns={'DISTRICT_ID': 'arson_district'},inplace=True)
 optimized_arson = pd.merge(optimized_arson, fire_stns[['STATION_NUM','DISTRICT']],how='left',left_on='firestation',right_on='STATION_NUM')
 optimized_arson['equal_district'] = np.where(optimized_arson["arson_district"] == optimized_arson["DISTRICT"], True, False)
 
-#optimized_arson.to_csv("C:/Users/Sandy Oaks/Documents/Grad School/F20_MATH-5593/Project/optimized_arson.csv")
 
 ## ---------------- VISUALIZE CRIME ---------------- ##
 
-crime.hist(by=crime.OFFENSE_TYPE_ID)
-
-gdf = gpd.read_file('C:/Users/Sandy Oaks/Documents/Grad School/F20_MATH-5593/Project/crime.shp')
-
-pub_token = 'pk.eyJ1Ijoic3JvYmxlczA5IiwiYSI6ImNraHd3NDR1YjAwcXIyem96ZXZyOHByenYifQ.uWk1hO1nNQCJJ8zNQsHpvg'
+pub_token = ''
 px.set_mapbox_access_token(pub_token)
+
+# Plot by arson type
 fig = px.scatter_mapbox(crime, lat="GEO_LAT", lon="GEO_LON",     color="OFFENSE_TYPE_ID",
                   color_continuous_scale=px.colors.cyclical.IceFire, zoom=11)
-fig.scatter_mapbox(fire_stns, lat="GEO_LAT", lon="GEO_LON",     color="DISTRICT")
+#fig.scatter_mapbox(fire_stns, lat="GEO_LAT", lon="GEO_LON",     color="DISTRICT")
 fig.update_layout(autosize=True, hovermode='closest',
                   mapbox = {'accesstoken': pub_token, 'style': "basic"})
 fig.show()
 
+# Plot by year
 crime['year'] = pd.DatetimeIndex(crime['REPORTED_DATE']).year
 #crime['year'] = int(crime['year'])
 fig2 = px.scatter_mapbox(crime, lat="GEO_LAT", lon="GEO_LON",     color='year',zoom=11)
 fig2.show()
+
+# Plot by district for those that shifted
+fig3 = px.scatter_mapbox(optimized_arson, lat="GEO_LAT", lon="GEO_LON",     color='equal_district',zoom=11)
+fig3.update_layout(autosize=True, hovermode='closest',
+                  mapbox = {'accesstoken': pub_token, 'style': "basic"})
+fig3.show()
